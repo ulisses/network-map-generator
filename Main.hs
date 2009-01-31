@@ -37,7 +37,6 @@ readAll ph =
 --main = f >>= f_ >>= print
 f_ ph = nextBS ph >>= \(phd,bs) -> f_ ph >>= \res -> return (phd : res)
 
-
 ffff bytes = let ethPacket = getPacketE_ bytes
                 in case ethPacket of
                     (Just p) -> case packType $ fromJust $ ethPacket of
