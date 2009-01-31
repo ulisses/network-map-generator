@@ -26,17 +26,17 @@ import Maybe
 f = openOffline "snort.log"
 
 main = f >>= readAll
-readAll :: PcapHandle -> IO [PktHdr]
+readAll :: PcapHandle -> IO [(PktHdr,ByteString)]
 readAll ph =
     do (phd,bs') <- nextBS ph
        if phd == PktHdr 0 0 0 0 then return [] -- as in 'next' from 'Network.Pcap.Base'
          else do --print phd
                  res <- readAll ph
-                 return (phd : res)
+                 return ((phd,bs') : res)
 
---main = f >>= f_ >>= print
-f_ ph = nextBS ph >>= \(phd,bs) -> f_ ph >>= \res -> return (phd : res)
+getPkgs = f >>= readAll >>= return . Prelude.map (getPacket . B.unpack . snd)
 
+-- fazer uma classe com todas as operações em comum...
 ffff bytes = let ethPacket = getPacketE_ bytes
                 in case ethPacket of
                     (Just p) -> case packType $ fromJust $ ethPacket of
