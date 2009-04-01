@@ -18,6 +18,7 @@ import Foreign.ForeignPtr
 import Foreign.Ptr
 import Data.Word
 import Data.Map as M
+import Data.Array.Vector as V
 -- import Network.Pcap.Base
 import Foreign.Marshal.Array (peekArray)
 import IO
@@ -92,7 +93,6 @@ aaa m (bytes:t) = let k = getPortDst bytes
                                      False-> M.insert k ((src,dst) : (m M.! k)) m `union` aaa m t
                      Nothing -> M.insert k [(getIPSrc bytes, getIPDst bytes)] m `union` aaa m t
 
--- TODO: fazer uma classe com todas as operações em comum...
 ffff :: InPacket -> PacoteM
 ffff bytes = let ethPacket = getPacketE_ bytes
                 in case ethPacket of
@@ -136,17 +136,39 @@ getPacketICMP_ bytes = doParse bytes :: Maybe (NE.Packet (NI4.Packet NI.Packet))
 --                             f = fff mapa lw8
 --                         in  
 -- 
--- ff :: IO Int
--- ff = f >>= \x -> loopBS x (-1) (callback1 M.empty)
 
-fff :: Mapa -> [Word8] -> Mapa
+callback1 :: PktHdr -> ByteString -> IO ()
+callback1 pkt bs = asas $ getPacket $ B.unpack bs
+
+ff :: IO Int
+ff = f >>= \x -> loopBS x (-1) callback1
+
+asas :: InPacket -> PacoteM
+asas bytes = let ethPacket = getPacketE_ bytes
+                in case ethPacket of
+                    (Just p) -> case packType $ fromJust $ ethPacket of
+                                    IPv4 -> case protocol $ NE.content $ fromJust $ getPacketIPv4_ bytes of
+                                                TCP -> PacoteTCP (NI4.source $ NE.content $ fromJust $ getPacketUDP_ bytes,
+                                                                  NI4.dest $ NE.content $ fromJust $ getPacketUDP_ bytes,
+                                                                  NU.destPort $ NI4.content $ NE.content $ fromJust $ getPacketUDP_ bytes)
+                                                UDP -> PacoteUDP (NI4.source $ NE.content $ fromJust $ getPacketUDP_ bytes,
+                                                                  NI4.dest $ NE.content $ fromJust $ getPacketUDP_ bytes,
+                                                                  NU.destPort $ NI4.content $ NE.content $ fromJust $ getPacketUDP_ bytes)
+                                                ICMP -> NULL_ICMP
+                                                (NI4.Unknown w8) -> NULL_NI4
+                                    ARP -> NULL_ARP
+                                    (Ethernet i) -> NULL_ETH
+                                    (NE.Unknown w16) -> NULL_NE
+                    Nothing ->   error "otherE"
+
+{-fff :: Mapa -> [Word8] -> Mapa
 fff mapa bytes = let ethPacket = getPacketE bytes
                  in case ethPacket of
                     (Just p) -> case packType $ fromJust $ ethPacket of
                                      IPv4 -> case protocol $ NE.content $ fromJust $ getPacketIPv4 bytes of
                                                 TCP -> M.singleton (NT.destPort $ NI4.content $ NE.content $ fromJust $ getPacketTCP bytes)
                                                                      [(NI4.source $ NE.content $ fromJust $ getPacketTCP bytes,
-                                                                      NI4.dest $ NE.content $ fromJust $ getPacketTCP bytes)]
+                                                                      NI4.dest $ NE.content $ fromJust $ getPacketTCP bytes)]-}
 --                                                 UDP -> print (NI4.dest $ NE.content $ fromJust $ getPacketUDP bytes
 --                                                              ,NU.destPort $ NI4.content $ NE.content $ fromJust $ getPacketUDP bytes)
 --                                                 ICMP -> print $ getPacketTCP bytes
@@ -157,6 +179,7 @@ fff mapa bytes = let ethPacket = getPacketE bytes
 --                  Nothing ->   error "otherE"
 
 --p :: [Word8] -> InPacket
+getPacket :: [Word8] -> InPacket
 getPacket bytes =  toInPack (listArray (0,Prelude.length bytes-1) bytes)
 
 getPacketE bytes = doParse $ getPacket bytes :: Maybe (NE.Packet InPacket)
@@ -164,6 +187,7 @@ getPacketIPv4 bytes = doParse $ getPacket bytes :: Maybe (NE.Packet (NI4.Packet 
 getPacketARP bytes = doParse $ getPacket bytes :: Maybe (NE.Packet NA.Packet)
 --getPacketIPv6 bytes = doParse $ getPacket bytes :: Maybe (NE.Packet (NI6.Packet InPacket))
 
+getPacketTCP :: [Word8] -> Maybe (NE.Packet (NI4.Packet (NT.Packet InPacket)))
 getPacketTCP bytes = doParse $ getPacket bytes :: Maybe (NE.Packet (NI4.Packet (NT.Packet InPacket)))
 getPacketUDP bytes = doParse $ getPacket bytes :: Maybe (NE.Packet (NI4.Packet (NU.Packet InPacket)))
 getPacketICMP bytes = doParse $ getPacket bytes :: Maybe (NE.Packet (NI4.Packet NI.Packet))
